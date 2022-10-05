@@ -345,7 +345,7 @@ int scan_for_probes(void)
 		}
 		libusb_exit(NULL);
 	}
-	return result;
+	return debuggerCount == 1 ? 0 : -1;;
 }
 
 int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
