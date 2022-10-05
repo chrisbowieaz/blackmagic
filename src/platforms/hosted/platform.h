@@ -67,7 +67,13 @@ void platform_buffer_flush(void);
 #define PRODUCT_ID_STLINKV3        0x374fU
 #define PRODUCT_ID_STLINKV3E       0x374eU
 
-#define VENDOR_ID_SEGGER 0x1366U
+#define VENDOR_ID_SEGGER   0x1366
+#define PRODUCT_ID_UNKNOWN 0xFFFF
+
+#define VENDOR_ID_FTDI         0x0403
+#define PRODUCT_ID_FTDI_FT2232 0x6010
+#define PRODUCT_ID_FTDI_FT4232 0x6011
+#define PRODUCT_ID_FTDI_FT232  0x6014
 
 typedef enum bmp_type_e {
 	BMP_TYPE_NONE = 0,

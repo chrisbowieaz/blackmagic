@@ -50,6 +50,17 @@ else ifneq (filter, macosx darwin, $(SYS))
     LDFLAGS += -framework CoreFoundation
     CFLAGS += -I /opt/homebrew/include -I /opt/homebrew/include/libusb-1.0
 endif
+#
+#   TODO: This next section needs to be integrated into the above OS processing
+#
+ifeq ($(OS), Windows_NT)
+	CFLAGS += -I../3rdparty/ftdi
+	ifeq ($(PROCESSOR_ARCHITECTURE), AMD64)
+		LDFLAGS += ../3rdparty/ftdi/amd64/ftd2xx.lib
+	else
+		LDFLAGS += ../3rdparty/ftdi/i386/ftd2xx.lib
+	endif
+endif
 
 ifneq ($(HOSTED_BMP_ONLY), 1)
     ifneq ($(shell pkg-config --exists libusb-1.0; echo $$?), 0)
