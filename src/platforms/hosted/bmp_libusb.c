@@ -190,7 +190,7 @@ size_t process_ftdi_probe(PROBE_INFORMATION *probe_information)
 				}
 			}
 		} else {
-			printf("process_ftdi_probe: memory allocation failed\n");
+			DEBUG_WARN("process_ftdi_probe: memory allocation failed\n");
 		}
 	}
 	return devicesFound;
@@ -332,20 +332,21 @@ int scan_for_probes(void)
 			}
 			libusb_free_device_list(device_list, 1);
 		}
-		//
-		// Print the probes found
-		//
-		if (debuggerCount != 0) {
+		if (debuggerCount > 1) {
+			DEBUG_WARN("%d debuggers found!\nSelect with -P <pos> "
+					   "or -s <(partial)serial no.>\n",
+				debuggerCount);
+
 			for (size_t debugger_index = 0; debugger_index < debuggerCount; debugger_index++) {
-				printf("%zu\t%-20s\tS/N: %s\n", debugger_index + 1, probes[debugger_index].probe_type,
+				DEBUG_WARN("%zu\t%-20s\tS/N: %s\n", debugger_index + 1, probes[debugger_index].probe_type,
 					probes[debugger_index].serial_number);
 			}
 		} else {
-			printf("No debug probes attached\n");
+			DEBUG_WARN("No debug probes attached\n");
 		}
 		libusb_exit(NULL);
 	}
-	return debuggerCount == 1 ? 0 : -1;;
+	return debuggerCount == 1 ? 0 : -1;
 }
 
 int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
