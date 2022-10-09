@@ -185,7 +185,7 @@ probe_info_s *process_ftdi_probe(void)
 }
 #endif
 
-libusb_device_descriptor_s *device_check_for_cmsis_interface(libusb_device_descriptor_s *device_descriptor,
+libusb_device_descriptor_s *process_cmsis_interface_probe(libusb_device_descriptor_s *device_descriptor,
 	libusb_device *device, libusb_device_handle *handle, probe_info_s *probe_list)
 {
 	(void)device_descriptor;
@@ -232,13 +232,14 @@ libusb_device_descriptor_s *device_check_for_cmsis_interface(libusb_device_descr
 	return NULL;
 }
 
-bool device_check_in_vid_pid_table(
+bool process_vid_pid_table_probe(
 	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list)
 {
 	libusb_device_handle *handle;
 	bool probe_added = false;
 	char *serial;
 	char *manufacturer;
+	char *product;
 	ssize_t vid_pid_index = 0;
 	while (debuggerDevices[vid_pid_index].type != BMP_TYPE_NONE) {
 		if (device_descriptor->idVendor == debuggerDevices[vid_pid_index].vendor &&
@@ -307,7 +308,7 @@ static const probe_info_s *scan_for_devices(void)
 					return (probe_info_s *)NULL;
 				}
 				if (device_descriptor.idVendor != VENDOR_ID_FTDI || skipFTDI == false) {
-					if (device_check_in_vid_pid_table(&device_descriptor, device, &probe_list) == false) {
+					if (process_vid_pid_table_probe(&device_descriptor, device, &probe_list) == false) {
 					}
 					// if ((known_device_descriptor = device_check_in_vid_pid_table(
 					// 		 &device_descriptor, device, &probes[debuggerCount])) == NULL) {
@@ -359,13 +360,11 @@ int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
 	if (!probe_list) {
 		DEBUG_WARN("No probes found\n");
 		return -1;
-	} else {
-		size_t position = 1;
-		while (probe_list != NULL) {
-			DEBUG_WARN(
-				"%d. %s, %s, %s\n", position++, probe_list->serial, probe_list->manufacturer, probe_list->version);
-			probe_list = probe_list->next;
-		}
+	}
+	size_t position = 1;
+	while (probe_list != NULL) {
+		DEBUG_WARN("%d. %s, %s, %s\n", position++, probe_list->serial, probe_list->manufacturer, probe_list->version);
+		probe_list = probe_list->next;
 	}
 	return 1;
 }
