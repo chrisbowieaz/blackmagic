@@ -168,6 +168,7 @@ probe_info_s *process_ftdi_probe(void)
 						free(serial);
 						serial = strdup("Unknown");
 					} else {
+						serial_len -= 1;
 						if (*(serial + serial_len) == 'A') {
 							*(serial + serial_len) = '\0';
 						}
@@ -185,12 +186,12 @@ probe_info_s *process_ftdi_probe(void)
 #endif
 
 libusb_device_descriptor_s *device_check_for_cmsis_interface(libusb_device_descriptor_s *device_descriptor,
-	libusb_device *device, libusb_device_handle *handle, probe_info_s *probe_information)
+	libusb_device *device, libusb_device_handle *handle, probe_info_s *probe_list)
 {
 	(void)device_descriptor;
 	(void)device;
 	(void)handle;
-	(void)probe_information;
+	(void)probe_list;
 	// libusb_device_descriptor_s *result = NULL;
 	// libusb_config_descriptor_s *config;
 	// if (libusb_get_active_config_descriptor(device, &config) == 0 && libusb_open(device, &handle) == 0) {
@@ -231,73 +232,65 @@ libusb_device_descriptor_s *device_check_for_cmsis_interface(libusb_device_descr
 	return NULL;
 }
 
-struct libusb_device_descriptor *device_check_in_vid_pid_table(
-	struct libusb_device_descriptor *device_descriptor, libusb_device *device, probe_info_s *probe_information)
+bool device_check_in_vid_pid_table(
+	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list)
 {
-	(void)device_descriptor;
-	(void)device;
-	(void)probe_information;
-
-	// struct libusb_device_descriptor *result = NULL;
-	// libusb_device_handle *handle;
-	// ssize_t vid_pid_index = 0;
-	// while (debuggerDevices[vid_pid_index].type != BMP_TYPE_NONE) {
-	// 	if (device_descriptor->idVendor == debuggerDevices[vid_pid_index].vendor &&
-	// 		(device_descriptor->idProduct == debuggerDevices[vid_pid_index].product ||
-	// 			debuggerDevices[vid_pid_index].product == PRODUCT_ID_UNKNOWN)) {
-	// 		result = device_descriptor;
-	// 		memcpy(probe_information->probe_type, debuggerDevices[vid_pid_index].typeString,
-	// 			strlen(debuggerDevices[vid_pid_index].typeString));
-	// 		//
-	// 		// Default to unknown serial number, operations below may fail
-	// 		//
-	// 		memcpy(probe_information->serial_number, "Unknown", sizeof("Unknown"));
-	// 		if (libusb_open(device, &handle) == 0) {
-	// 			if (device_descriptor->iSerialNumber != 0) {
-	// 				libusb_get_string_descriptor_ascii(handle, device_descriptor->iSerialNumber,
-	// 					(unsigned char *)&probe_information->serial_number, sizeof(probe_information->serial_number));
-	// 			}
-	// 			libusb_close(handle);
-	// 		}
-	// 		break;
-	// 	}
-	// 	vid_pid_index++;
-	// }
-	return NULL;
+	libusb_device_handle *handle;
+	bool probe_added = false;
+	char *serial;
+	char *manufacturer;
+	ssize_t vid_pid_index = 0;
+	while (debuggerDevices[vid_pid_index].type != BMP_TYPE_NONE) {
+		if (device_descriptor->idVendor == debuggerDevices[vid_pid_index].vendor &&
+			(device_descriptor->idProduct == debuggerDevices[vid_pid_index].product ||
+				debuggerDevices[vid_pid_index].product == PRODUCT_ID_UNKNOWN)) {
+			char read_string[128];
+			//
+			// Default to unknown serial number, operations below may fail
+			//
+			if (libusb_open(device, &handle) == 0) {
+				if (device_descriptor->iSerialNumber != 0) {
+					libusb_get_string_descriptor_ascii(
+						handle, device_descriptor->iSerialNumber, (unsigned char *)read_string, sizeof(read_string));
+					serial = strdup(read_string);
+					libusb_get_string_descriptor_ascii(
+						handle, device_descriptor->iManufacturer, (unsigned char *)read_string, sizeof(read_string));
+					manufacturer = strdup(read_string);
+					*probe_list = probe_info_add(*probe_list, 0x55, manufacturer, serial, "1.xxx");
+					probe_added = true;
+				}
+				libusb_close(handle);
+			}
+			break;
+		}
+		vid_pid_index++;
+	}
+	return probe_added;
 }
 
 static const probe_info_s *scan_for_devices(void)
 {
 	libusb_device **device_list;
-	// libusb_device_descriptor_s device_descriptor;
+	libusb_device_descriptor_s device_descriptor;
 	// libusb_device_descriptor_s *known_device_descriptor;
-	// libusb_device *device;
+	libusb_device *device;
 	// libusb_device_handle *handle = NULL;
 	probe_info_s *probe_list = NULL;
-	// struct libusb_config_descriptor *config = NULL;
+	// probe_info_s *added_probe = NULL;
+	// libusb_config_descriptor_s *config = NULL;
 
 	int result;
 	ssize_t cnt;
-	// size_t deviceIndex = 0;
-	// bool skipFTDI;
+	size_t deviceIndex = 0;
+	bool skipFTDI = false;
 	//
 	// If we are running on Windows the proprietory FTD2XX library is used
 	// to collect debugger information.
 	//
 #if defined(_WIN32) || defined(__CYGWIN__)
-	probe_list = process_ftdi_probe();
-	if (probe_list == NULL) {
-		DEBUG_WARN("No probes found\n");
-	} else {
-		size_t number = 1;
-		while (probe_list != NULL) {
-			DEBUG_WARN("%d. %s\n", number++, probe_list->manufacturer);
-			probe_list = probe_list->next;
-		}
+	if ((probe_list = process_ftdi_probe()) != NULL) {
+		skipFTDI = true;
 	}
-	while (1)
-		;
-		// skipFTDI = true;
 #else
 	skipFTDI = false;
 #endif
@@ -305,37 +298,37 @@ static const probe_info_s *scan_for_devices(void)
 	if (result == 0) {
 		cnt = libusb_get_device_list(NULL, &device_list);
 		if (cnt > 0) {
-			//
 			// Parse the list of USB devices found
-			//
-			// while ((device = device_list[deviceIndex++]) != NULL) {
-			// 	result = libusb_get_device_descriptor(device, &device_descriptor);
-			// 	memset(probes[debuggerCount].serial_number, 0x00, sizeof(probes[debuggerCount].serial_number));
-			// 	if (result < 0) {
-			// 		result = fprintf(stderr, "failed to get device descriptor");
-			// 		return (const probe_info_s *)NULL;
-			// 	}
-			// 	if (device_descriptor.idVendor != VENDOR_ID_FTDI || skipFTDI == false) {
-			// 		if ((known_device_descriptor = device_check_in_vid_pid_table(
-			// 				 &device_descriptor, device, &probes[debuggerCount])) == NULL) {
-			// 			//
-			// 			// Check if there is a CMSIS interface on this device
-			// 			//
-			// 			known_device_descriptor = device_check_for_cmsis_interface(
-			// 				&device_descriptor, device, handle, &probes[debuggerCount]);
-			// 		}
-			// 		//
-			// 		// If we have a known device we can continue to report its data
-			// 		//
-			// 		if (known_device_descriptor != NULL) {
-			// 			if (device_descriptor.idVendor == VENDOR_ID_STLINK &&
-			// 				device_descriptor.idProduct == PRODUCT_ID_STLINKV2) {
-			// 				memcpy(probes[debuggerCount].serial_number, "Unknown", 8);
-			// 			}
-			// 			debuggerCount++;
-			// 		}
-			// 	}
-			// }
+
+			while ((device = device_list[deviceIndex++]) != NULL) {
+				result = libusb_get_device_descriptor(device, &device_descriptor);
+				if (result < 0) {
+					result = fprintf(stderr, "failed to get device descriptor");
+					return (probe_info_s *)NULL;
+				}
+				if (device_descriptor.idVendor != VENDOR_ID_FTDI || skipFTDI == false) {
+					if (device_check_in_vid_pid_table(&device_descriptor, device, &probe_list) == false) {
+					}
+					// if ((known_device_descriptor = device_check_in_vid_pid_table(
+					// 		 &device_descriptor, device, &probes[debuggerCount])) == NULL) {
+					// 	//
+					// 	// Check if there is a CMSIS interface on this device
+					// 	//
+					// 	known_device_descriptor = device_check_for_cmsis_interface(
+					// 		&device_descriptor, device, handle, &probes[debuggerCount]);
+					// }
+					// //
+					// // If we have a known device we can continue to report its data
+					// //
+					// if (known_device_descriptor != NULL) {
+					// 	if (device_descriptor.idVendor == VENDOR_ID_STLINK &&
+					// 		device_descriptor.idProduct == PRODUCT_ID_STLINKV2) {
+					// 		memcpy(probes[debuggerCount].serial_number, "Unknown", 8);
+					// 	}
+					// 	debuggerCount++;
+					// }
+				}
+			}
 			libusb_free_device_list(device_list, 1);
 		}
 		// if (debuggerCount > 1) {
@@ -352,7 +345,7 @@ static const probe_info_s *scan_for_devices(void)
 		// }
 		libusb_exit(NULL);
 	}
-	return (const probe_info_s *)NULL;
+	return probe_info_correct_order(probe_list);
 }
 
 int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
@@ -362,10 +355,16 @@ int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
 	if (cl_opts->opt_device)
 		return 1;
 	/* Scan for all possible probes on the system */
-	const probe_info_s *const probe_list = scan_for_devices();
+	const probe_info_s *probe_list = scan_for_devices();
 	if (!probe_list) {
-		DEBUG_WARN("No BMP probe found\n");
+		DEBUG_WARN("No probes found\n");
 		return -1;
+	} else {
+		size_t number = 1;
+		while (probe_list != NULL) {
+			DEBUG_WARN("%d. %s\n", number++, probe_list->manufacturer);
+			probe_list = probe_list->next;
+		}
 	}
 	return 1;
 }
