@@ -165,7 +165,7 @@ probe_info_s *process_ftdi_probe(void)
 					serial = strdup(devInfo[devIndex].SerialNumber);
 					size_t serial_len = strlen(serial);
 					if (serial_len == 1) {
-						free(serial);
+						free((void *)serial);
 						serial = strdup("Unknown");
 					} else {
 						serial_len -= 1;
@@ -176,7 +176,7 @@ probe_info_s *process_ftdi_probe(void)
 					probe_list = probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, serial, "1.xxx");
 				}
 			}
-			free(devInfo);
+			free((void *)devInfo);
 		} else {
 			DEBUG_WARN("process_ftdi_probe: memory allocation failed\n");
 		}
