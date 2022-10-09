@@ -360,9 +360,10 @@ int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
 		DEBUG_WARN("No probes found\n");
 		return -1;
 	} else {
-		size_t number = 1;
+		size_t position = 1;
 		while (probe_list != NULL) {
-			DEBUG_WARN("%d. %s\n", number++, probe_list->manufacturer);
+			DEBUG_WARN(
+				"%d. %s, %s, %s\n", position++, probe_list->serial, probe_list->manufacturer, probe_list->version);
 			probe_list = probe_list->next;
 		}
 	}
