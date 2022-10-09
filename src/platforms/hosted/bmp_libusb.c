@@ -164,7 +164,7 @@ probe_info_s *process_ftdi_probe(void)
 					manufacturer = strdup(devInfo[devIndex].Description);
 					serial = strdup(devInfo[devIndex].SerialNumber);
 					size_t serial_len = strlen(serial);
-					if (serial_len == 0) {
+					if (serial_len == 1) {
 						free(serial);
 						serial = strdup("Unknown");
 					} else {
