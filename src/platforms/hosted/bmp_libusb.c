@@ -61,7 +61,7 @@ DEBUGGER_DEVICE debuggerDevices[] = {
 	{0, 0, BMP_TYPE_NONE, false, ""},
 };
 
-void bmp_ident(bmp_info_t *info)
+void bmp_ident(bmp_info_s *info)
 {
 	PRINT_INFO("Black Magic Debug App %s\n for Black Magic Probe, ST-Link v2 and v3, CMSIS-DAP,"
 			   " JLink and libftdi/MPSSE\n",
@@ -349,7 +349,7 @@ static const probe_info_s *scan_for_devices(void)
 	return probe_info_correct_order(probe_list);
 }
 
-int find_debuggers(BMP_CL_OPTIONS_t *cl_opts, bmp_info_t *info)
+int find_debuggers(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 {
 	(void)cl_opts;
 	(void)info;
