@@ -239,7 +239,6 @@ bool process_vid_pid_table_probe(
 	bool probe_added = false;
 	char *serial;
 	char *manufacturer;
-	char *product;
 	ssize_t vid_pid_index = 0;
 	while (debuggerDevices[vid_pid_index].type != BMP_TYPE_NONE) {
 		if (device_descriptor->idVendor == debuggerDevices[vid_pid_index].vendor &&
