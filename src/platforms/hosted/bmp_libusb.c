@@ -35,18 +35,18 @@
 
 #define NO_SERIAL_NUMBER "<no serial number>"
 
-typedef struct debuggerDevice {
+typedef struct debugger_device {
 	uint16_t vendor;
 	uint16_t product;
 	bmp_type_t type;
 	bool isCMSIS;
 	char *typeString;
-} DEBUGGER_DEVICE;
+} debugger_device_s;
 
 //
 // Create the list of debuggers BMDA works with
 //
-DEBUGGER_DEVICE debuggerDevices[] = {
+debugger_device_s debuggerDevices[] = {
 	{VENDOR_ID_BMP, PRODUCT_ID_BMP, BMP_TYPE_BMP, false, "Black Magic Probe"},
 	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV2, BMP_TYPE_STLINKV2, false, "ST-Link v2"},
 	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV21, BMP_TYPE_STLINKV2, false, "ST-Link v2.1"},
