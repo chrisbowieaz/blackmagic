@@ -185,51 +185,59 @@ probe_info_s *process_ftdi_probe(void)
 }
 #endif
 
-libusb_device_descriptor_s *process_cmsis_interface_probe(libusb_device_descriptor_s *device_descriptor,
-	libusb_device *device, libusb_device_handle *handle, probe_info_s *probe_list)
+bool process_cmsis_interface_probe(
+	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list)
 {
 	(void)device_descriptor;
 	(void)device;
-	(void)handle;
 	(void)probe_list;
-	// libusb_device_descriptor_s *result = NULL;
-	// libusb_config_descriptor_s *config;
-	// if (libusb_get_active_config_descriptor(device, &config) == 0 && libusb_open(device, &handle) == 0) {
-	// 	bool cmsis_dap = false;
-	// 	for (size_t iface = 0; iface < config->bNumInterfaces && !cmsis_dap; ++iface) {
-	// 		const libusb_interface_s *interface = &config->interface[iface];
-	// 		for (int descriptorIndex = 0; descriptorIndex < interface->num_altsetting; ++descriptorIndex) {
-	// 			const libusb_interface_descriptor_ *descriptor = &interface->altsetting[descriptorIndex];
-	// 			uint8_t string_index = descriptor->iInterface;
-	// 			if (string_index == 0)
-	// 				continue;
-	// 			//
-	// 			// Read back the string descriptor interpreted as ASCII (wrong but
-	// 			// easier to deal with in C)
-	// 			//
-	// 			if (libusb_get_string_descriptor_ascii(handle, string_index,
-	// 					(unsigned char *)probe_information->probe_type, sizeof(probe_information->probe_type)) < 0)
-	// 				continue; /* We failed but that's a soft error at this point. */
-	// 			if (strstr(probe_information->probe_type, "CMSIS") != NULL) {
-	// 				//
-	// 				// Read the serial number from the probe
-	// 				//
-	// 				string_index = device_descriptor->iSerialNumber;
-	// 				if (libusb_get_string_descriptor_ascii(handle, string_index,
-	// 						(unsigned char *)probe_information->serial_number,
-	// 						sizeof(probe_information->serial_number)) < 0)
-	// 					continue; /* We failed but that's a soft error at this point. */
+	char *serial;
+	char *manufacturer;
+	libusb_device_handle *handle;
+	bool cmsis_dap = false;
 
-	// 				result = device_descriptor;
-	// 				cmsis_dap = true;
-	// 			} else {
-	// 				memset(probe_information->probe_type, 0x00, sizeof(probe_information->probe_type));
-	// 			}
-	// 		}
-	// 	}
-	// 	libusb_close(handle);
-	// }
-	return NULL;
+	libusb_config_descriptor_s *config;
+	if (libusb_get_active_config_descriptor(device, &config) == 0) {
+	}
+	if (libusb_get_active_config_descriptor(device, &config) == 0 && libusb_open(device, &handle) == 0) {
+		char read_string[128];
+
+		for (size_t iface = 0; iface < config->bNumInterfaces && !cmsis_dap; ++iface) {
+			const libusb_interface_s *interface = &config->interface[iface];
+			for (int descriptorIndex = 0; descriptorIndex < interface->num_altsetting; ++descriptorIndex) {
+				const libusb_interface_descriptor_s *descriptor = &interface->altsetting[descriptorIndex];
+				uint8_t string_index = descriptor->iInterface;
+				if (string_index == 0)
+					continue;
+				if (libusb_get_string_descriptor_ascii(
+						handle, string_index, (unsigned char *)read_string, sizeof(read_string)) < 0)
+					continue; /* We failed but that's a soft error at this point. */
+
+				if (strstr(read_string, "CMSIS") != NULL) {
+					if (device_descriptor->iSerialNumber == 0) {
+						serial = strdup("Unknown");
+					} else {
+						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iSerialNumber,
+								(unsigned char *)read_string, sizeof(read_string)) < 0)
+							continue; /* We failed but that's a soft error at this point. */
+						serial = strdup(read_string);
+					}
+					if (device_descriptor->iManufacturer == 0) {
+						manufacturer = strdup("Unknown");
+					} else {
+						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iManufacturer,
+								(unsigned char *)read_string, sizeof(read_string)) < 0)
+							continue; /* We failed but that's a soft error at this point. */
+						manufacturer = strdup(read_string);
+					}
+					*probe_list = probe_info_add(*probe_list, 0xaa, manufacturer, serial, "1.1");
+					cmsis_dap = true;
+				}
+			}
+		}
+		libusb_close(handle);
+	}
+	return cmsis_dap;
 }
 
 bool process_vid_pid_table_probe(
@@ -308,41 +316,12 @@ static const probe_info_s *scan_for_devices(void)
 				}
 				if (device_descriptor.idVendor != VENDOR_ID_FTDI || skipFTDI == false) {
 					if (process_vid_pid_table_probe(&device_descriptor, device, &probe_list) == false) {
+						process_cmsis_interface_probe(&device_descriptor, device, &probe_list);
 					}
-					// if ((known_device_descriptor = device_check_in_vid_pid_table(
-					// 		 &device_descriptor, device, &probes[debuggerCount])) == NULL) {
-					// 	//
-					// 	// Check if there is a CMSIS interface on this device
-					// 	//
-					// 	known_device_descriptor = device_check_for_cmsis_interface(
-					// 		&device_descriptor, device, handle, &probes[debuggerCount]);
-					// }
-					// //
-					// // If we have a known device we can continue to report its data
-					// //
-					// if (known_device_descriptor != NULL) {
-					// 	if (device_descriptor.idVendor == VENDOR_ID_STLINK &&
-					// 		device_descriptor.idProduct == PRODUCT_ID_STLINKV2) {
-					// 		memcpy(probes[debuggerCount].serial_number, "Unknown", 8);
-					// 	}
-					// 	debuggerCount++;
-					// }
 				}
 			}
 			libusb_free_device_list(device_list, 1);
 		}
-		// if (debuggerCount > 1) {
-		// 	DEBUG_WARN("%d debuggers found!\nSelect with -P <pos> "
-		// 			   "or -s <(partial)serial no.>\n",
-		// 		debuggerCount);
-
-		// 	for (size_t debugger_index = 0; debugger_index < debuggerCount; debugger_index++) {
-		// 		DEBUG_WARN("%zu\t%-20s\tS/N: %s\n", debugger_index + 1, probes[debugger_index].probe_type,
-		// 			probes[debugger_index].serial_number);
-		// 	}
-		// } else {
-		// 	DEBUG_WARN("No debug probes attached\n");
-		// }
 		libusb_exit(NULL);
 	}
 	return probe_info_correct_order(probe_list);
