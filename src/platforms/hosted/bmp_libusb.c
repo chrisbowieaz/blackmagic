@@ -40,13 +40,13 @@ typedef struct debugger_device {
 	uint16_t product;
 	bmp_type_t type;
 	bool isCMSIS;
-	char *typeString;
+	char *type_string;
 } debugger_device_s;
 
 //
 // Create the list of debuggers BMDA works with
 //
-debugger_device_s debuggerDevices[] = {
+debugger_device_s debugger_devices[] = {
 	{VENDOR_ID_BMP, PRODUCT_ID_BMP, BMP_TYPE_BMP, false, "Black Magic Probe"},
 	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV2, BMP_TYPE_STLINKV2, false, "ST-Link v2"},
 	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV21, BMP_TYPE_STLINKV2, false, "ST-Link v2.1"},
@@ -60,6 +60,17 @@ debugger_device_s debuggerDevices[] = {
 	{VENDOR_ID_FTDI, PRODUCT_ID_FTDI_FT232, BMP_TYPE_LIBFTDI, false, "FTDI FT232"},
 	{0, 0, BMP_TYPE_NONE, false, ""},
 };
+
+bmp_type_t get_type_from_vid_pid(uint16_t probe_vid, uint16_t probe_pid) {
+	bmp_type_t probe_type = BMP_TYPE_NONE ;
+	for ( size_t index = 0 ; debugger_devices[index].type != BMP_TYPE_NONE; index++) {
+		if ( probe_vid == debugger_devices[index].vendor && probe_pid == debugger_devices[index].product) {
+			probe_type = debugger_devices[index].type ;
+			break;
+		}
+	}
+	return probe_type ;
+}
 
 void bmp_ident(bmp_info_s *info)
 {
@@ -252,11 +263,12 @@ bool process_vid_pid_table_probe(
 	char *serial;
 	char *manufacturer;
 	char *product ;
+	bmp_type_t probe_type ;
 	ssize_t vid_pid_index = 0;
-	while (debuggerDevices[vid_pid_index].type != BMP_TYPE_NONE) {
-		if (device_descriptor->idVendor == debuggerDevices[vid_pid_index].vendor &&
-			(device_descriptor->idProduct == debuggerDevices[vid_pid_index].product ||
-				debuggerDevices[vid_pid_index].product == PRODUCT_ID_UNKNOWN)) {
+	while (debugger_devices[vid_pid_index].type != BMP_TYPE_NONE) {
+		if (device_descriptor->idVendor == debugger_devices[vid_pid_index].vendor &&
+			(device_descriptor->idProduct == debugger_devices[vid_pid_index].product ||
+				debugger_devices[vid_pid_index].product == PRODUCT_ID_UNKNOWN)) {
 			char read_string[128];
 			//
 			// Default to unknown serial number, operations below may fail
@@ -270,7 +282,8 @@ bool process_vid_pid_table_probe(
 						handle, device_descriptor->iManufacturer, (unsigned char *)read_string, sizeof(read_string));
 					manufacturer = strdup(read_string);
 					product = strdup("Product") ;
-					*probe_list = probe_info_add(*probe_list, 0x55, manufacturer, product, serial, "1.xxx");
+					probe_type = get_type_from_vid_pid(device_descriptor->idVendor, device_descriptor->idProduct) ;
+					*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, "1.xxx");
 					probe_added = true;
 				}
 				libusb_close(handle);
