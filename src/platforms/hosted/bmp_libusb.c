@@ -61,15 +61,16 @@ debugger_device_s debugger_devices[] = {
 	{0, 0, BMP_TYPE_NONE, false, ""},
 };
 
-bmp_type_t get_type_from_vid_pid(uint16_t probe_vid, uint16_t probe_pid) {
-	bmp_type_t probe_type = BMP_TYPE_NONE ;
-	for ( size_t index = 0 ; debugger_devices[index].type != BMP_TYPE_NONE; index++) {
-		if ( probe_vid == debugger_devices[index].vendor && probe_pid == debugger_devices[index].product) {
-			probe_type = debugger_devices[index].type ;
+bmp_type_t get_type_from_vid_pid(uint16_t probe_vid, uint16_t probe_pid)
+{
+	bmp_type_t probe_type = BMP_TYPE_NONE;
+	for (size_t index = 0; debugger_devices[index].type != BMP_TYPE_NONE; index++) {
+		if (probe_vid == debugger_devices[index].vendor && probe_pid == debugger_devices[index].product) {
+			probe_type = debugger_devices[index].type;
 			break;
 		}
 	}
-	return probe_type ;
+	return probe_type;
 }
 
 void bmp_ident(bmp_info_s *info)
@@ -163,7 +164,7 @@ probe_info_s *process_ftdi_probe(void)
 	DWORD ftdiDevCount = 0;
 	char *serial;
 	char *manufacturer;
-	char *product ;
+	char *product;
 
 	FT_DEVICE_LIST_INFO_NODE *devInfo;
 	if (FT_CreateDeviceInfoList(&ftdiDevCount) == FT_OK) {
@@ -185,7 +186,7 @@ probe_info_s *process_ftdi_probe(void)
 							*(serial + serial_len) = '\0';
 						}
 					}
-					product = strdup("product") ;
+					product = strdup("product");
 					probe_list = probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, product, serial, "1.xxx");
 				}
 			}
@@ -206,7 +207,7 @@ bool process_cmsis_interface_probe(
 	(void)probe_list;
 	char *serial;
 	char *manufacturer;
-	char *product ;
+	char *product;
 	libusb_device_handle *handle;
 	bool cmsis_dap = false;
 
@@ -244,7 +245,7 @@ bool process_cmsis_interface_probe(
 							continue; /* We failed but that's a soft error at this point. */
 						manufacturer = strdup(read_string);
 					}
-					product = strdup("Product") ;
+					product = strdup("Product");
 					*probe_list = probe_info_add(*probe_list, 0xaa, manufacturer, product, serial, "1.1");
 					cmsis_dap = true;
 				}
@@ -262,8 +263,8 @@ bool process_vid_pid_table_probe(
 	bool probe_added = false;
 	char *serial;
 	char *manufacturer;
-	char *product ;
-	bmp_type_t probe_type ;
+	char *product;
+	bmp_type_t probe_type;
 	ssize_t vid_pid_index = 0;
 	while (debugger_devices[vid_pid_index].type != BMP_TYPE_NONE) {
 		if (device_descriptor->idVendor == debugger_devices[vid_pid_index].vendor &&
@@ -281,8 +282,10 @@ bool process_vid_pid_table_probe(
 					libusb_get_string_descriptor_ascii(
 						handle, device_descriptor->iManufacturer, (unsigned char *)read_string, sizeof(read_string));
 					manufacturer = strdup(read_string);
-					product = strdup("Product") ;
-					probe_type = get_type_from_vid_pid(device_descriptor->idVendor, device_descriptor->idProduct) ;
+					libusb_get_string_descriptor_ascii(
+						handle, device_descriptor->iProduct, (unsigned char *)read_string, sizeof(read_string));
+					product = strdup(read_string);
+					probe_type = get_type_from_vid_pid(device_descriptor->idVendor, device_descriptor->idProduct);
 					*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, "1.xxx");
 					probe_added = true;
 				}
