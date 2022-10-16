@@ -152,6 +152,7 @@ probe_info_s *process_ftdi_probe(void)
 	DWORD ftdiDevCount = 0;
 	char *serial;
 	char *manufacturer;
+	char *product ;
 
 	FT_DEVICE_LIST_INFO_NODE *devInfo;
 	if (FT_CreateDeviceInfoList(&ftdiDevCount) == FT_OK) {
@@ -173,7 +174,8 @@ probe_info_s *process_ftdi_probe(void)
 							*(serial + serial_len) = '\0';
 						}
 					}
-					probe_list = probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, serial, "1.xxx");
+					product = strdup("product") ;
+					probe_list = probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, product, serial, "1.xxx");
 				}
 			}
 			free((void *)devInfo);
@@ -193,6 +195,7 @@ bool process_cmsis_interface_probe(
 	(void)probe_list;
 	char *serial;
 	char *manufacturer;
+	char *product ;
 	libusb_device_handle *handle;
 	bool cmsis_dap = false;
 
@@ -230,7 +233,8 @@ bool process_cmsis_interface_probe(
 							continue; /* We failed but that's a soft error at this point. */
 						manufacturer = strdup(read_string);
 					}
-					*probe_list = probe_info_add(*probe_list, 0xaa, manufacturer, serial, "1.1");
+					product = strdup("Product") ;
+					*probe_list = probe_info_add(*probe_list, 0xaa, manufacturer, product, serial, "1.1");
 					cmsis_dap = true;
 				}
 			}
@@ -247,6 +251,7 @@ bool process_vid_pid_table_probe(
 	bool probe_added = false;
 	char *serial;
 	char *manufacturer;
+	char *product ;
 	ssize_t vid_pid_index = 0;
 	while (debuggerDevices[vid_pid_index].type != BMP_TYPE_NONE) {
 		if (device_descriptor->idVendor == debuggerDevices[vid_pid_index].vendor &&
@@ -264,7 +269,8 @@ bool process_vid_pid_table_probe(
 					libusb_get_string_descriptor_ascii(
 						handle, device_descriptor->iManufacturer, (unsigned char *)read_string, sizeof(read_string));
 					manufacturer = strdup(read_string);
-					*probe_list = probe_info_add(*probe_list, 0x55, manufacturer, serial, "1.xxx");
+					product = strdup("Product") ;
+					*probe_list = probe_info_add(*probe_list, 0x55, manufacturer, product, serial, "1.xxx");
 					probe_added = true;
 				}
 				libusb_close(handle);
