@@ -174,20 +174,20 @@ probe_info_s *process_ftdi_probe(void)
 				// Device list is loaded, iterate over the found probes
 				//
 				for (size_t devIndex = 0; devIndex < ftdiDevCount; devIndex++) {
-					manufacturer = strdup(devInfo[devIndex].Description);
+					product = strdup(devInfo[devIndex].Description);
 					serial = strdup(devInfo[devIndex].SerialNumber);
 					size_t serial_len = strlen(serial);
 					if (serial_len == 1) {
 						free((void *)serial);
-						serial = strdup("Unknown");
+						serial = strdup("Unknown serial");
 					} else {
 						serial_len -= 1;
 						if (*(serial + serial_len) == 'A') {
 							*(serial + serial_len) = '\0';
 						}
 					}
-					product = strdup("product");
-					probe_list = probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, product, serial, "1.xxx");
+					manufacturer = strdup("FTDI");
+					probe_list = probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, product, serial, "---");
 				}
 			}
 			free((void *)devInfo);
@@ -212,8 +212,7 @@ bool process_cmsis_interface_probe(
 	bool cmsis_dap = false;
 
 	libusb_config_descriptor_s *config;
-	if (libusb_get_active_config_descriptor(device, &config) == 0) {
-	}
+
 	if (libusb_get_active_config_descriptor(device, &config) == 0 && libusb_open(device, &handle) == 0) {
 		char read_string[128];
 
@@ -230,7 +229,7 @@ bool process_cmsis_interface_probe(
 
 				if (strstr(read_string, "CMSIS") != NULL) {
 					if (device_descriptor->iSerialNumber == 0) {
-						serial = strdup("Unknown");
+						serial = strdup("Unknown serial number");
 					} else {
 						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iSerialNumber,
 								(unsigned char *)read_string, sizeof(read_string)) < 0)
@@ -238,15 +237,22 @@ bool process_cmsis_interface_probe(
 						serial = strdup(read_string);
 					}
 					if (device_descriptor->iManufacturer == 0) {
-						manufacturer = strdup("Unknown");
+						manufacturer = strdup("Unknown manufacturer");
 					} else {
 						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iManufacturer,
 								(unsigned char *)read_string, sizeof(read_string)) < 0)
 							continue; /* We failed but that's a soft error at this point. */
 						manufacturer = strdup(read_string);
 					}
-					product = strdup("Product");
-					*probe_list = probe_info_add(*probe_list, 0xaa, manufacturer, product, serial, "1.1");
+					if (device_descriptor->iProduct == 0) {
+						product = strdup("Unknown product");
+					} else {
+						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iProduct,
+								(unsigned char *)read_string, sizeof(read_string)) < 0)
+							continue; /* We failed but that's a soft error at this point. */
+						product = strdup(read_string);
+					}
+					*probe_list = probe_info_add(*probe_list, BMP_TYPE_CMSIS_DAP, manufacturer, product, serial, "---");
 					cmsis_dap = true;
 				}
 			}
@@ -276,6 +282,7 @@ bool process_vid_pid_table_probe(
 			// Default to unknown serial number, operations below may fail
 			//
 			if (libusb_open(device, &handle) == 0) {
+				probe_type = get_type_from_vid_pid(device_descriptor->idVendor, device_descriptor->idProduct);
 				if (device_descriptor->iSerialNumber != 0) {
 					libusb_get_string_descriptor_ascii(
 						handle, device_descriptor->iSerialNumber, (unsigned char *)read_string, sizeof(read_string));
@@ -298,7 +305,6 @@ bool process_vid_pid_table_probe(
 						version = strdup(start_of_version);
 					}
 					product = strdup(read_string);
-					probe_type = get_type_from_vid_pid(device_descriptor->idVendor, device_descriptor->idProduct);
 					*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, version);
 					probe_added = true;
 				}
@@ -376,7 +382,7 @@ int find_debuggers(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 	}
 	size_t position = 1;
 	while (probe_list != NULL) {
-		DEBUG_WARN("%d. %s, %s, %s, %s\n", position++, probe_list->product, probe_list->serial,
+		DEBUG_WARN("%d. %-20s %-20s %-25s %s\n", position++, probe_list->product, probe_list->serial,
 			probe_list->manufacturer, probe_list->version);
 		probe_list = probe_list->next;
 	}
