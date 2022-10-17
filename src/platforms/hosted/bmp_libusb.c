@@ -264,6 +264,7 @@ bool process_vid_pid_table_probe(
 	char *serial;
 	char *manufacturer;
 	char *product;
+	char *version;
 	bmp_type_t probe_type;
 	ssize_t vid_pid_index = 0;
 	while (debugger_devices[vid_pid_index].type != BMP_TYPE_NONE) {
@@ -284,9 +285,21 @@ bool process_vid_pid_table_probe(
 					manufacturer = strdup(read_string);
 					libusb_get_string_descriptor_ascii(
 						handle, device_descriptor->iProduct, (unsigned char *)read_string, sizeof(read_string));
+					char *start_of_version = strrchr(read_string, ' ');
+					if (start_of_version == NULL)
+						version = NULL;
+					else {
+						while (start_of_version[0] == ' ' && start_of_version != read_string)
+							--start_of_version;
+						start_of_version[1] = '\0';
+						start_of_version += 2;
+						while (start_of_version[0] == ' ' && start_of_version[0] != '\0')
+							++start_of_version;
+						version = strdup(start_of_version);
+					}
 					product = strdup(read_string);
 					probe_type = get_type_from_vid_pid(device_descriptor->idVendor, device_descriptor->idProduct);
-					*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, "1.xxx");
+					*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, version);
 					probe_added = true;
 				}
 				libusb_close(handle);
@@ -363,7 +376,8 @@ int find_debuggers(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 	}
 	size_t position = 1;
 	while (probe_list != NULL) {
-		DEBUG_WARN("%d. %s, %s, %s\n", position++, probe_list->serial, probe_list->manufacturer, probe_list->version);
+		DEBUG_WARN("%d. %s, %s, %s, %s\n", position++, probe_list->product, probe_list->serial,
+			probe_list->manufacturer, probe_list->version);
 		probe_list = probe_list->next;
 	}
 	return 1;
