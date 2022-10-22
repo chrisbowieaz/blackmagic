@@ -75,6 +75,9 @@ void platform_buffer_flush(void);
 #define PRODUCT_ID_FTDI_FT4232 0x6011
 #define PRODUCT_ID_FTDI_FT232  0x6014
 
+#define VENDOR_ID_ORBCODE   0x1209
+#define PRODUCT_ID_ORBTRACE 0x3443
+
 typedef enum bmp_type_e {
 	BMP_TYPE_NONE = 0,
 	BMP_TYPE_BMP,
