@@ -310,8 +310,8 @@ bool process_vid_pid_table_probe(
 
 				*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, version);
 				probe_added = true;
+				libusb_close(handle);
 			}
-			libusb_close(handle);
 			break;
 		}
 		vid_pid_index++;
