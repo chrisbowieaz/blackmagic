@@ -246,26 +246,17 @@ bool process_cmsis_interface_probe(
 					if (device_descriptor->iSerialNumber == 0) {
 						serial = strdup("Unknown serial number");
 					} else {
-						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iSerialNumber,
-								(unsigned char *)read_string, sizeof(read_string)) < 0)
-							continue; /* We failed but that's a soft error at this point. */
-						serial = strdup(read_string);
+						serial = get_device_descriptor_string(handle, device_descriptor->iSerialNumber);
 					}
 					if (device_descriptor->iManufacturer == 0) {
 						manufacturer = strdup("Unknown manufacturer");
 					} else {
-						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iManufacturer,
-								(unsigned char *)read_string, sizeof(read_string)) < 0)
-							continue; /* We failed but that's a soft error at this point. */
-						manufacturer = strdup(read_string);
+						manufacturer = get_device_descriptor_string(handle, device_descriptor->iManufacturer);
 					}
 					if (device_descriptor->iProduct == 0) {
 						product = strdup("Unknown product");
 					} else {
-						if (libusb_get_string_descriptor_ascii(handle, device_descriptor->iProduct,
-								(unsigned char *)read_string, sizeof(read_string)) < 0)
-							continue; /* We failed but that's a soft error at this point. */
-						product = strdup(read_string);
+						product = get_device_descriptor_string(handle, device_descriptor->iProduct);;
 					}
 					*probe_list = probe_info_add(*probe_list, BMP_TYPE_CMSIS_DAP, manufacturer, product, serial, "---");
 					cmsis_dap = true;
