@@ -35,12 +35,18 @@
 
 #define NO_SERIAL_NUMBER "<no serial number>"
 
+void orbtrace_read_version(libusb_device *device, libusb_device_handle *handle, char *version, size_t buffer_size);
+
+void get_bmp_product_version_string(struct libusb_device_descriptor *device_descriptor, libusb_device *device,
+	libusb_device_handle *handle, char **product, char **manufacturer, char **serial, char **version);
+
 typedef struct debugger_device {
 	uint16_t vendor;
 	uint16_t product;
 	bmp_type_t type;
 	bool isCMSIS;
-	void (*function)(void);
+	void (*function)(
+		struct libusb_device_descriptor *, libusb_device *, libusb_device_handle *, char **, char **, char **, char **);
 	char *type_string;
 } debugger_device_s;
 
@@ -48,11 +54,10 @@ typedef struct debugger_device {
 // Create the list of debuggers BMDA works with
 //
 debugger_device_s debugger_devices[] = {
-	{VENDOR_ID_BMP, PRODUCT_ID_BMP, BMP_TYPE_BMP, false, NULL, "Black Magic Probe"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV2, BMP_TYPE_STLINKV2, NULL, false, "ST-Link v2"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV21, BMP_TYPE_STLINKV2, NULL, false, "ST-Link v2.1"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV21_MSD, BMP_TYPE_STLINKV2, NULL, false, "ST-Link v2.1 MSD"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3_NO_MSD, BMP_TYPE_STLINKV2, NULL, false, "ST-Link v2.1 No MSD"},
+	{VENDOR_ID_BMP, PRODUCT_ID_BMP, BMP_TYPE_BMP, false, get_bmp_product_version_string, "Black Magic Probe"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV2, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v2"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV21_MSD, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v2.1 MSD"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3_NO_MSD, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v2.1 No MSD"},
 	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v3"},
 	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3E, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v3E"},
 	{VENDOR_ID_SEGGER, PRODUCT_ID_UNKNOWN, BMP_TYPE_JLINK, false, NULL, "Segger JLink"},
@@ -98,66 +103,41 @@ void libusb_exit_function(bmp_info_s *info)
 	}
 }
 
-// static bmp_type_e find_cmsis_dap_interface(libusb_device *dev, bmp_info_s *info)
-// {
-// 	bmp_type_t type = BMP_TYPE_NONE;
+char *get_device_descriptor_string(libusb_device_handle *handle, uint16_t string_index)
+{
+	char read_string[128] = {0};
+	if (string_index != 0) {
+		libusb_get_string_descriptor_ascii(handle, string_index, (unsigned char *)read_string, sizeof(read_string));
+	}
+	return strdup(read_string);
+}
 
-// 	libusb_config_descriptor_s *conf;
-// 	char interface_string[128];
-
-// 	int res = libusb_get_active_config_descriptor(dev, &conf);
-// 	if (res < 0) {
-// 		DEBUG_WARN("WARN: libusb_get_active_config_descriptor() failed: %s", libusb_strerror(res));
-// 		return type;
-// 	}
-
-// 	libusb_device_handle *handle;
-// 	res = libusb_open(dev, &handle);
-// 	if (res != LIBUSB_SUCCESS) {
-// 		DEBUG_INFO("INFO: libusb_open() failed: %s\n", libusb_strerror(res));
-// 		libusb_free_config_descriptor(conf);
-// 		return type;
-// 	}
-
-// 	for (int i = 0; i < conf->bNumInterfaces; i++) {
-// 		const struct libusb_interface_descriptor *interface = &conf->interface[i].altsetting[0];
-
-// 		if (!interface->iInterface) {
-// 			continue;
-// 		}
-
-// 		res = libusb_get_string_descriptor_ascii(
-// 			handle, interface->iInterface, (uint8_t *)interface_string, sizeof(interface_string));
-// 		if (res < 0) {
-// 			DEBUG_WARN("WARN: libusb_get_string_descriptor_ascii() failed: %s\n", libusb_strerror(res));
-// 			continue;
-// 		}
-
-// 		if (!strstr(interface_string, "CMSIS")) {
-// 			continue;
-// 		}
-// 		type = BMP_TYPE_CMSIS_DAP;
-
-// 		if (interface->bInterfaceClass == 0xff && interface->bNumEndpoints == 2) {
-// 			info->interface_num = interface->bInterfaceNumber;
-
-// 			for (int j = 0; j < interface->bNumEndpoints; j++) {
-// 				uint8_t n = interface->endpoint[j].bEndpointAddress;
-
-// 				if (n & 0x80) {
-// 					info->in_ep = n;
-// 				} else {
-// 					info->out_ep = n;
-// 				}
-// 			}
-
-// 			/* V2 is preferred, return early. */
-// 			break;
-// 		}
-// 	}
-// 	libusb_free_config_descriptor(conf);
-// 	return type;
-// }
+//
+// BMP Probes have there version in formation in the product string.
+//
+// Extract the product and version, skip the manufacturer string
+//
+void get_bmp_product_version_string(struct libusb_device_descriptor *device_descriptor, libusb_device *device,
+	libusb_device_handle *handle, char **product, char **manufacturer, char **serial, char **version)
+{
+	(void)device;
+	(void)serial;
+	(void)manufacturer;
+	char *start_of_version;
+	*product = get_device_descriptor_string(handle, device_descriptor->iProduct);
+	start_of_version = strrchr(*product, ' ');
+	if (start_of_version == NULL) {
+		version = NULL;
+	} else {
+		while (start_of_version[0] == ' ' && start_of_version != *product)
+			--start_of_version;
+		start_of_version[1] = '\0';
+		start_of_version += 2;
+		while (start_of_version[0] == ' ' && start_of_version[0] != '\0')
+			++start_of_version;
+		*version = strdup(start_of_version);
+	}
+}
 
 #if defined(_WIN32) || defined(__CYGWIN__)
 probe_info_s *process_ftdi_probe(void)
@@ -200,6 +180,28 @@ probe_info_s *process_ftdi_probe(void)
 	return probe_list;
 }
 #endif
+
+void orbtrace_read_version(libusb_device *device, libusb_device_handle *handle, char *version, size_t buffer_size)
+{
+	libusb_config_descriptor_s *config;
+	if (libusb_get_active_config_descriptor(device, &config) == 0) {
+		for (size_t iface = 0; iface < config->bNumInterfaces; ++iface) {
+			const libusb_interface_s *interface = &config->interface[iface];
+			for (int descriptorIndex = 0; descriptorIndex < interface->num_altsetting; ++descriptorIndex) {
+				const libusb_interface_descriptor_s *descriptor = &interface->altsetting[descriptorIndex];
+				uint8_t string_index = descriptor->iInterface;
+				if (string_index == 0)
+					continue;
+				if (libusb_get_string_descriptor_ascii(handle, string_index, (unsigned char *)version, buffer_size) < 0)
+					continue; /* We failed but that's a soft error at this point. */
+
+				if (strstr(version, "Version") != NULL) {
+					break;
+				}
+			}
+		}
+	}
+}
 
 bool process_cmsis_interface_probe(
 	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list)
@@ -267,11 +269,12 @@ bool process_cmsis_interface_probe(
 bool process_vid_pid_table_probe(
 	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list)
 {
+	(void)device;
 	libusb_device_handle *handle;
 	bool probe_added = false;
-	char *serial;
-	char *manufacturer;
-	char *product;
+	char *serial = NULL;
+	char *manufacturer = NULL;
+	char *product = NULL;
 	char *version;
 	bmp_type_t probe_type;
 	ssize_t vid_pid_index = 0;
@@ -279,39 +282,34 @@ bool process_vid_pid_table_probe(
 		if (device_descriptor->idVendor == debugger_devices[vid_pid_index].vendor &&
 			(device_descriptor->idProduct == debugger_devices[vid_pid_index].product ||
 				debugger_devices[vid_pid_index].product == PRODUCT_ID_UNKNOWN)) {
-			char read_string[128];
-			//
-			// Default to unknown serial number, operations below may fail
-			//
 			if (libusb_open(device, &handle) == 0) {
 				probe_type = get_type_from_vid_pid(device_descriptor->idVendor, device_descriptor->idProduct);
-				if (device_descriptor->iSerialNumber != 0) {
-					libusb_get_string_descriptor_ascii(
-						handle, device_descriptor->iSerialNumber, (unsigned char *)read_string, sizeof(read_string));
-					serial = strdup(read_string);
-					libusb_get_string_descriptor_ascii(
-						handle, device_descriptor->iManufacturer, (unsigned char *)read_string, sizeof(read_string));
-					manufacturer = strdup(read_string);
-					libusb_get_string_descriptor_ascii(
-						handle, device_descriptor->iProduct, (unsigned char *)read_string, sizeof(read_string));
-					char *start_of_version = strrchr(read_string, ' ');
-					if (start_of_version == NULL)
-						version = NULL;
-					else {
-						while (start_of_version[0] == ' ' && start_of_version != read_string)
-							--start_of_version;
-						start_of_version[1] = '\0';
-						start_of_version += 2;
-						while (start_of_version[0] == ' ' && start_of_version[0] != '\0')
-							++start_of_version;
-						version = strdup(start_of_version);
-					}
-					product = strdup(read_string);
-					*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, version);
-					probe_added = true;
+				//
+				// If the probe has a custom string reader installed, use it first.
+				//
+				// This will read and process any strings that need special work, e.g., extracting
+				// a version string from a product string (BMP native)
+				if (debugger_devices[vid_pid_index].function != NULL) {
+					debugger_devices[vid_pid_index].function(
+						device_descriptor, device, handle, &product, &manufacturer, &serial, &version);
 				}
-				libusb_close(handle);
+				//
+				// Now read any strings that have not been set by a custom reader function
+				//
+				if (product == NULL) {
+					product = get_device_descriptor_string(handle, device_descriptor->iProduct);
+				}
+				if (manufacturer == NULL) {
+					manufacturer = get_device_descriptor_string(handle, device_descriptor->iManufacturer);
+				}
+				if (serial == NULL) {
+					serial = get_device_descriptor_string(handle, device_descriptor->iSerialNumber);
+				}
+
+				*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, version);
+				probe_added = true;
 			}
+			libusb_close(handle);
 			break;
 		}
 		vid_pid_index++;
