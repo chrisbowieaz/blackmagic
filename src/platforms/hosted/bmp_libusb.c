@@ -141,13 +141,13 @@ void get_bmp_product_version_string(struct libusb_device_descriptor *device_desc
 
 void get_orbtrace_version_string(struct libusb_device_descriptor *device_descriptor, libusb_device *device,
 	libusb_device_handle *handle, char **product, char **manufacturer, char **serial, char **version)
-{	
-	(void)device ;
-	(void)device_descriptor ;
+{
+	(void)device;
+	(void)device_descriptor;
 	(void)serial;
 	(void)manufacturer;
-	(void)product ;
-	*version = get_device_descriptor_string(handle, 8);	// Version is in the #8 interface descriptor string
+	(void)product;
+	*version = get_device_descriptor_string(handle, 8); // Version is in the #8 interface descriptor string
 }
 
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -180,7 +180,8 @@ probe_info_s *process_ftdi_probe(void)
 						}
 					}
 					manufacturer = strdup("FTDI");
-					probe_list = probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, product, serial, "---");
+					probe_list =
+						probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, product, serial, strdup("---"));
 				}
 			}
 			free((void *)devInfo);
@@ -256,7 +257,8 @@ bool process_cmsis_interface_probe(
 					if (device_descriptor->iProduct == 0) {
 						product = strdup("Unknown product");
 					} else {
-						product = get_device_descriptor_string(handle, device_descriptor->iProduct);;
+						product = get_device_descriptor_string(handle, device_descriptor->iProduct);
+						;
 					}
 					*probe_list = probe_info_add(*probe_list, BMP_TYPE_CMSIS_DAP, manufacturer, product, serial, "---");
 					cmsis_dap = true;
@@ -382,13 +384,30 @@ int find_debuggers(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 		DEBUG_WARN("No probes found\n");
 		return -1;
 	}
-	size_t position = 1;
-	while (probe_list != NULL) {
-		DEBUG_WARN("%d. %-20s %-20s %-25s %s\n", position++, probe_list->product, probe_list->serial,
-			probe_list->manufacturer, probe_list->version);
-		probe_list = probe_list->next;
+	/* Count up how many were found and filter the list for a match to the program options request */
+	const size_t probes = probe_info_count(probe_list);
+	const probe_info_s *probe = NULL;
+	/* If there's just one probe and we didn't get match critera, pick it */
+	if (probes == 1 && !cl_opts->opt_serial && !cl_opts->opt_position)
+		probe = probe_list;
+	else /* Otherwise filter the list */
+		probe = probe_info_filter(probe_list, cl_opts->opt_serial, cl_opts->opt_position);
+
+	/* If we found no matching probes, or we're in list-only mode */
+	if (!probe || cl_opts->opt_list_only) {
+		DEBUG_WARN("Available Probes:\n");
+		probe = probe_list;
+		for (size_t position = 1; probe; probe = probe->next, ++position)
+			DEBUG_WARN("%2zu. %-20s %-20s %-25s %s\n", position, probe->product, probe->serial, probe->manufacturer,
+				probe->version);
+		probe_info_list_free(probe_list);
+		return 1; // false;
 	}
-	return 1;
+
+	/* We found a matching probe, populate bmp_info_s and signal success */
+	probe_info_to_bmp_info(probe, info);
+	probe_info_list_free(probe_list);
+	return 0; // true;
 }
 
 static void LIBUSB_CALL on_trans_done(libusb_transfer_s *const transfer)
