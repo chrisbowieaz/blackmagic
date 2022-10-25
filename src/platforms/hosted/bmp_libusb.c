@@ -167,6 +167,8 @@ probe_info_s *process_ftdi_probe(void)
 				// Device list is loaded, iterate over the found probes
 				//
 				for (size_t devIndex = 0; devIndex < ftdiDevCount; devIndex++) {
+					uint16_t vid = (devInfo[devIndex].ID & 0xffff0000) >> 16;
+					uint16_t pid = (devInfo[devIndex].ID & 0xffff);
 					product = strdup(devInfo[devIndex].Description);
 					serial = strdup(devInfo[devIndex].SerialNumber);
 					size_t serial_len = strlen(serial);
@@ -180,8 +182,8 @@ probe_info_s *process_ftdi_probe(void)
 						}
 					}
 					manufacturer = strdup("FTDI");
-					probe_list =
-						probe_info_add(probe_list, BMP_TYPE_LIBFTDI, manufacturer, product, serial, strdup("---"));
+					probe_list = probe_info_add_by_id(
+						probe_list, BMP_TYPE_LIBFTDI, vid, pid, manufacturer, product, serial, strdup("---"));
 				}
 			}
 			free((void *)devInfo);
@@ -218,7 +220,6 @@ void orbtrace_read_version(libusb_device *device, libusb_device_handle *handle, 
 bool process_cmsis_interface_probe(
 	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list)
 {
-	(void)device_descriptor;
 	(void)device;
 	(void)probe_list;
 	char *serial;
@@ -260,7 +261,8 @@ bool process_cmsis_interface_probe(
 						product = get_device_descriptor_string(handle, device_descriptor->iProduct);
 						;
 					}
-					*probe_list = probe_info_add(*probe_list, BMP_TYPE_CMSIS_DAP, manufacturer, product, serial, "---");
+					*probe_list = probe_info_add_by_id(*probe_list, BMP_TYPE_CMSIS_DAP, device_descriptor->idVendor,
+						device_descriptor->idProduct, manufacturer, product, serial, "---");
 					cmsis_dap = true;
 				}
 			}
@@ -310,7 +312,8 @@ bool process_vid_pid_table_probe(
 					serial = get_device_descriptor_string(handle, device_descriptor->iSerialNumber);
 				}
 
-				*probe_list = probe_info_add(*probe_list, probe_type, manufacturer, product, serial, version);
+				*probe_list = probe_info_add_by_id(*probe_list, probe_type, device_descriptor->idVendor,
+					device_descriptor->idProduct, manufacturer, product, serial, version);
 				probe_added = true;
 				libusb_close(handle);
 			}
