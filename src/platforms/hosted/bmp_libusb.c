@@ -44,7 +44,6 @@ typedef struct debugger_device {
 	uint16_t vendor;
 	uint16_t product;
 	bmp_type_t type;
-	bool isCMSIS;
 	void (*function)(
 		struct libusb_device_descriptor *, libusb_device *, libusb_device_handle *, char **, char **, char **, char **);
 	char *type_string;
@@ -54,18 +53,17 @@ typedef struct debugger_device {
 // Create the list of debuggers BMDA works with
 //
 debugger_device_s debugger_devices[] = {
-	{VENDOR_ID_BMP, PRODUCT_ID_BMP, BMP_TYPE_BMP, false, get_bmp_product_version_string, "Black Magic Probe"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV2, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v2"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV21_MSD, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v2.1 MSD"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3_NO_MSD, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v2.1 No MSD"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v3"},
-	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3E, BMP_TYPE_STLINKV2, false, NULL, "ST-Link v3E"},
-	{VENDOR_ID_SEGGER, PRODUCT_ID_UNKNOWN, BMP_TYPE_JLINK, false, NULL, "Segger JLink"},
-	{VENDOR_ID_FTDI, PRODUCT_ID_FTDI_FT2232, BMP_TYPE_LIBFTDI, false, NULL, "FTDI FT2232"},
-	{VENDOR_ID_FTDI, PRODUCT_ID_FTDI_FT4232, BMP_TYPE_LIBFTDI, false, NULL, "FTDI FT4232"},
-	{VENDOR_ID_FTDI, PRODUCT_ID_FTDI_FT232, BMP_TYPE_LIBFTDI, false, NULL, "FTDI FT232"},
-	{VENDOR_ID_ORBCODE, PRODUCT_ID_ORBTRACE, BMP_TYPE_CMSIS_DAP, true, get_orbtrace_version_string, "Orbtrace"},
-	{0, 0, BMP_TYPE_NONE, false, NULL, ""},
+	{VENDOR_ID_BMP, PRODUCT_ID_BMP, BMP_TYPE_BMP, get_bmp_product_version_string, "Black Magic Probe"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV2, BMP_TYPE_STLINKV2, NULL, "ST-Link v2"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV21_MSD, BMP_TYPE_STLINKV2, NULL, "ST-Link v2.1 MSD"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3_NO_MSD, BMP_TYPE_STLINKV2, NULL, "ST-Link v2.1 No MSD"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3, BMP_TYPE_STLINKV2, NULL, "ST-Link v3"},
+	{VENDOR_ID_STLINK, PRODUCT_ID_STLINKV3E, BMP_TYPE_STLINKV2, NULL, "ST-Link v3E"},
+	{VENDOR_ID_SEGGER, PRODUCT_ID_UNKNOWN, BMP_TYPE_JLINK, NULL, "Segger JLink"},
+	{VENDOR_ID_FTDI, PRODUCT_ID_FTDI_FT2232, BMP_TYPE_LIBFTDI, NULL, "FTDI FT2232"},
+	{VENDOR_ID_FTDI, PRODUCT_ID_FTDI_FT4232, BMP_TYPE_LIBFTDI, NULL, "FTDI FT4232"},
+	{VENDOR_ID_FTDI, PRODUCT_ID_FTDI_FT232, BMP_TYPE_LIBFTDI, NULL, "FTDI FT232"},
+	{0, 0, BMP_TYPE_NONE, NULL, ""},
 };
 
 bmp_type_t get_type_from_vid_pid(uint16_t probe_vid, uint16_t probe_pid)
@@ -218,13 +216,16 @@ void orbtrace_read_version(libusb_device *device, libusb_device_handle *handle, 
 }
 
 bool process_cmsis_interface_probe(
-	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list)
+	libusb_device_descriptor_s *device_descriptor, libusb_device *device, probe_info_s **probe_list, bmp_info_s *info)
 {
 	(void)device;
 	(void)probe_list;
+	(void)info;
 	char *serial;
 	char *manufacturer;
 	char *product;
+	char *version;
+
 	libusb_device_handle *handle;
 	bool cmsis_dap = false;
 
@@ -236,7 +237,7 @@ bool process_cmsis_interface_probe(
 		for (size_t iface = 0; iface < config->bNumInterfaces && !cmsis_dap; ++iface) {
 			const libusb_interface_s *interface = &config->interface[iface];
 			for (int descriptorIndex = 0; descriptorIndex < interface->num_altsetting; ++descriptorIndex) {
-				const libusb_interface_descriptor_s *descriptor = &interface->altsetting[descriptorIndex];
+				const libusb_interface_descriptor_s *descriptor = &interface->altsetting[0];
 				uint8_t string_index = descriptor->iInterface;
 				if (string_index == 0)
 					continue;
@@ -245,6 +246,13 @@ bool process_cmsis_interface_probe(
 					continue; /* We failed but that's a soft error at this point. */
 
 				if (strstr(read_string, "CMSIS") != NULL) {
+					if (device_descriptor->idVendor == VENDOR_ID_ORBCODE &&
+						device_descriptor->idProduct == PRODUCT_ID_ORBTRACE) {
+						orbtrace_read_version(device, handle, read_string, sizeof(read_string));
+						version = strdup(read_string);
+					} else {
+						version = strdup("---");
+					}
 					if (device_descriptor->iSerialNumber == 0) {
 						serial = strdup("Unknown serial number");
 					} else {
@@ -262,13 +270,14 @@ bool process_cmsis_interface_probe(
 						;
 					}
 					*probe_list = probe_info_add_by_id(*probe_list, BMP_TYPE_CMSIS_DAP, device_descriptor->idVendor,
-						device_descriptor->idProduct, manufacturer, product, serial, "---");
+						device_descriptor->idProduct, manufacturer, product, serial, version);
 					cmsis_dap = true;
 				}
 			}
 		}
 		libusb_close(handle);
 	}
+
 	return cmsis_dap;
 }
 
@@ -324,7 +333,7 @@ bool process_vid_pid_table_probe(
 	return probe_added;
 }
 
-static const probe_info_s *scan_for_devices(void)
+static const probe_info_s *scan_for_devices(bmp_info_s *info)
 {
 	libusb_device **device_list;
 	libusb_device_descriptor_s device_descriptor;
@@ -364,7 +373,7 @@ static const probe_info_s *scan_for_devices(void)
 				}
 				if (device_descriptor.idVendor != VENDOR_ID_FTDI || skipFTDI == false) {
 					if (process_vid_pid_table_probe(&device_descriptor, device, &probe_list) == false) {
-						process_cmsis_interface_probe(&device_descriptor, device, &probe_list);
+						process_cmsis_interface_probe(&device_descriptor, device, &probe_list, info);
 					}
 				}
 			}
@@ -382,7 +391,7 @@ int find_debuggers(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 	if (cl_opts->opt_device)
 		return 1;
 	/* Scan for all possible probes on the system */
-	const probe_info_s *probe_list = scan_for_devices();
+	const probe_info_s *probe_list = scan_for_devices(info);
 	if (!probe_list) {
 		DEBUG_WARN("No probes found\n");
 		return -1;
@@ -408,6 +417,7 @@ int find_debuggers(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 	}
 
 	/* We found a matching probe, populate bmp_info_s and signal success */
+	DEBUG_WARN("Using: %-20s %-20s %-25s %s\n", probe->product, probe->serial, probe->manufacturer, probe->version);
 	probe_info_to_bmp_info(probe, info);
 	/* If the selected probe is an FTDI adapter try to resolve the adapter type */
 	if (probe->vid == VENDOR_ID_FTDI) {
