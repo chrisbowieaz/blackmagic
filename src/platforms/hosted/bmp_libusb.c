@@ -409,6 +409,14 @@ int find_debuggers(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 
 	/* We found a matching probe, populate bmp_info_s and signal success */
 	probe_info_to_bmp_info(probe, info);
+	/* If the selected probe is an FTDI adapter try to resolve the adapter type */
+	if (probe->vid == VENDOR_ID_FTDI) {
+		if (!ftdi_lookup_adapter_from_vid_pid(probe, cl_opts)) {
+			// Don't know the cable type, ask user to specify with "-c"
+			DEBUG_WARN("Please specify adapter type on command line using \"-c\" option");
+			return -1; //false
+		}
+	}
 	probe_info_list_free(probe_list);
 	return 0; // true;
 }

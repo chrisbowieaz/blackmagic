@@ -371,6 +371,34 @@ const cable_desc_s cable_desc[] = {
 	{},
 };
 
+/*
+	Search the adapter descriptor table for probes match the VID/PID
+	in the given probe structure.
+	If a single match is found, place the adapter descriptor pointer into
+	the cl_opts structure and return true.
+
+	Otherwise return false.
+ */
+
+bool ftdi_lookup_adapter_from_vid_pid(const probe_info_s *probe, bmda_cli_options_s *cl_opts)
+{
+	size_t adapter_count = 0;
+	const cable_desc_s *cable = &cable_desc[0];
+	const cable_desc_s *selection = NULL;
+	while (cable->vendor) {
+		if (cable->vendor == probe->vid && cable->product == probe->pid) {
+			adapter_count++;
+			selection = cable;
+		}
+		cable++;
+	}
+	if (adapter_count == 1) {
+		/* place the adapter name into cl_opts */
+		cl_opts->opt_cable = selection->name;
+	}
+	return adapter_count == 1;
+}
+
 int ftdi_bmp_init(bmda_cli_options_s *cl_opts, bmp_info_s *info)
 {
 	int err;

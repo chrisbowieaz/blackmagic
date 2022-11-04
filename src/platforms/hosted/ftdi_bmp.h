@@ -27,6 +27,8 @@
 
 #include "bmp_hosted.h"
 
+#include "probe_info.h"
+
 typedef struct data_desc {
 	int16_t data_low;
 	int16_t ddr_low;
@@ -179,6 +181,7 @@ extern ftdi_context_s *ftdic;
 extern data_desc_s active_state;
 
 int ftdi_bmp_init(bmda_cli_options_s *cl_opts, bmp_info_s *info);
+bool ftdi_lookup_adapter_from_vid_pid(const probe_info_s *probe, bmda_cli_options_s *cl_opts);
 bool libftdi_swdptap_init(void);
 bool libftdi_jtagtap_init(void);
 void libftdi_buffer_flush(void);
