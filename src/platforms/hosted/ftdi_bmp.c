@@ -385,16 +385,23 @@ bool ftdi_lookup_adapter_from_vid_pid(const probe_info_s *probe, bmda_cli_option
 	size_t adapter_count = 0;
 	const cable_desc_s *cable = &cable_desc[0];
 	const cable_desc_s *selection = NULL;
-	while (cable->vendor) {
-		if (cable->vendor == probe->vid && cable->product == probe->pid) {
-			adapter_count++;
-			selection = cable;
+	/*
+		If the user entered an adapter name use it
+	*/
+	if (!cl_opts->opt_cable) {
+		while (cable->vendor) {
+			if (cable->vendor == probe->vid && cable->product == probe->pid) {
+				adapter_count++;
+				selection = cable;
+			}
+			cable++;
 		}
-		cable++;
-	}
-	if (adapter_count == 1) {
-		/* place the adapter name into cl_opts */
-		cl_opts->opt_cable = selection->name;
+		if (adapter_count == 1) {
+			/* place the adapter name into cl_opts */
+			cl_opts->opt_cable = selection->name;
+		}
+	} else {
+		adapter_count = 1;
 	}
 	return adapter_count == 1;
 }
