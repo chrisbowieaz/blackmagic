@@ -242,8 +242,12 @@ void cl_init(bmda_cli_options_s *opt, int argc, char **argv)
 
 		switch (option) {
 		case 'c':
-			if (optarg)
-				opt->opt_cable = optarg;
+			if (optarg) {
+				char *opt_pointer = optarg;
+				while (opt_pointer && *opt_pointer == ' ')
+					opt_pointer++;
+				opt->opt_cable = opt_pointer;
+			}
 			break;
 		case 'h':
 			cl_debuglevel = 3;
