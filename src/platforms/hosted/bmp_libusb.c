@@ -35,8 +35,6 @@
 
 #define NO_SERIAL_NUMBER "<no serial number>"
 
-void get_orbtrace_version_string(struct libusb_device_descriptor *device_descriptor, libusb_device *device,
-	libusb_device_handle *handle, char **product, char **manufacturer, char **serial, char **version);
 void get_bmp_product_version_string(struct libusb_device_descriptor *device_descriptor, libusb_device *device,
 	libusb_device_handle *handle, char **product, char **manufacturer, char **serial, char **version);
 
@@ -135,17 +133,6 @@ void get_bmp_product_version_string(struct libusb_device_descriptor *device_desc
 			++start_of_version;
 		*version = strdup(start_of_version);
 	}
-}
-
-void get_orbtrace_version_string(struct libusb_device_descriptor *device_descriptor, libusb_device *device,
-	libusb_device_handle *handle, char **product, char **manufacturer, char **serial, char **version)
-{
-	(void)device;
-	(void)device_descriptor;
-	(void)serial;
-	(void)manufacturer;
-	(void)product;
-	*version = get_device_descriptor_string(handle, 8); // Version is in the #8 interface descriptor string
 }
 
 #if defined(_WIN32) || defined(__CYGWIN__)
